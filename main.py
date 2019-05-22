@@ -252,6 +252,49 @@ def github_copy_example_output():
                 os.path.join('example_output', fnew))
 
 
+@main.command()
+def github_prebuilt_images():
+    """Administrative command.  Creates example_output/prebuilt*.png.
+
+    Based on 8-cat, 9-automobile, which seem interesting.
+    """
+    p = 'example_output'
+    if not os.path.lexists(p):
+        os.makedirs(p)
+    for f in os.listdir(p):
+        if f.startswith('prebuilt'):
+            os.unlink(os.path.join(p, f))
+
+    ds_train, ds_test = _get_dataset()
+    models = ['resnet44-standard.pt', 'resnet44-adv-train.pt',
+            'resnet44-all.pt', 'resnet44-robust.pt']
+    for i, m_file in enumerate(models):
+        m = _model_load(os.path.join('prebuilt', m_file))
+        device = torch.device('cpu' if torch.cuda.device_count() == 0
+                else 'cuda')
+        m = m.to(device)
+        m.eval()
+        imgs = []
+        labels = []
+        for img_id in [2, 5, 8, 9]:
+            img, label = ds_test[img_id]
+            imgs.append(img)
+            labels.append(label)
+        imgs = torch.stack(imgs).to(device)
+
+        # Targets: real
+        expls = _adv_images(m, imgs, labels, AdversarialOptions(
+                encourage_labels=True, eps_overshoot=5, eps=0.1, steps=35))
+
+        for j in range(imgs.size(0)):
+            if i == 0:
+                # Save original
+                torchvision.utils.save_image(imgs[j], os.path.join(p,
+                        f'prebuilt_orig_{j}.png'))
+            torchvision.utils.save_image(expls[j], os.path.join(p,
+                    f'prebuilt_{i}_{j}.png'))
+
+
 ### Implementation / helper functions
 
 class AdversarialOptions:

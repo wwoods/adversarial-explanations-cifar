@@ -1,6 +1,6 @@
 # Example Code for "Reliable Classification Explanations via Adversarial Attacks on Robust Networks"
 
-This code demonstrates the techniques from the above paper, which will be linked at the time it is published.
+This code demonstrates the techniques from the above paper, which will be linked at the time it is published.  Note that this was not the exact code used in the research, but is a cleaned-up reproduction of the paper's key insights.
 
 ## Installation
 
@@ -25,13 +25,35 @@ An NVIDIA GPU is not required, but one or more GPUs will greatly accelerate netw
 
 ## Usage
 
-The application has two modes: explaining a trained model, and training a model from scratch.  Additionally, the repository contains several pre-built networks.
+This repository contains several pre-built networks, corresponding with the CIFAR-10 networks highlighted in the paper.
 
-The CIFAR-10 dataset will be automatically downloaded via the `torchvision` library; the desired download location for the CIFAR-10 data must be specified via the environment variable `CIFAR10_PATH`.
+The application has two modes: explaining a trained model, and training a model from scratch.
+
+When running the application, the CIFAR-10 dataset will be automatically downloaded via the `torchvision` library; the desired download location for the CIFAR-10 data must be specified via the environment variable `CIFAR10_PATH`.
+
+### Prebuilt Networks
+
+The repository contains four prebuilt networks:
+
+1. `prebuilt/resnet44-standard.pt`: A standard ResNet-44 with no special training.
+2. `prebuilt/resnet44-adv-train.pt`: A ResNet-44 trained with `--adversarial-training`.
+3. `prebuilt/resnet44-all.pt`: A ResNet-44 trained with `--robust-additions`, `--adversarial-training`, and `--l2-min`.
+4. `prebuilt/resnet44-robust.pt`: A ResNet-44 trained with `--robust-additions`.
+
+These correspond with, but are not the same as, the networks denoted N1, N2, N3, and N4 in the paper.  The training of these networks resulted in the following statistics:
+
+| Network | Final Training Loss | Final Psi | Test Accuracy | Ship -> Explain | Frog | Cat | Automobile |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| resnet44-standard.pt | 0.0075 | N/A | 0.9384  | ![Ship](https://github.com/wwoods/adversarial-explanations-cifar/raw/master/example_output/prebuilt_orig_0.png)![ShipExplain](https://github.com/wwoods/adversarial-explanations-cifar/raw/master/example_output/prebuilt_0_0.png) | ![Frog](https://github.com/wwoods/adversarial-explanations-cifar/raw/master/example_output/prebuilt_orig_1.png)![FrogExplain](https://github.com/wwoods/adversarial-explanations-cifar/raw/master/example_output/prebuilt_0_1.png) | ![Cat](https://github.com/wwoods/adversarial-explanations-cifar/raw/master/example_output/prebuilt_orig_2.png)![CatExplain](https://github.com/wwoods/adversarial-explanations-cifar/raw/master/example_output/prebuilt_0_2.png) | ![Automobile](https://github.com/wwoods/adversarial-explanations-cifar/raw/master/example_output/prebuilt_orig_3.png)![AutomobileExplain](https://github.com/wwoods/adversarial-explanations-cifar/raw/master/example_output/prebuilt_0_3.png) |
+| resnet44-adv-train.pt | 0.5313 | N/A | 0.8643 | ![Ship](https://github.com/wwoods/adversarial-explanations-cifar/raw/master/example_output/prebuilt_orig_0.png)![ShipExplain](https://github.com/wwoods/adversarial-explanations-cifar/raw/master/example_output/prebuilt_1_0.png) | ![Frog](https://github.com/wwoods/adversarial-explanations-cifar/raw/master/example_output/prebuilt_orig_1.png)![FrogExplain](https://github.com/wwoods/adversarial-explanations-cifar/raw/master/example_output/prebuilt_1_1.png) | ![Cat](https://github.com/wwoods/adversarial-explanations-cifar/raw/master/example_output/prebuilt_orig_2.png)![CatExplain](https://github.com/wwoods/adversarial-explanations-cifar/raw/master/example_output/prebuilt_1_2.png) | ![Automobile](https://github.com/wwoods/adversarial-explanations-cifar/raw/master/example_output/prebuilt_orig_3.png)![AutomobileExplain](https://github.com/wwoods/adversarial-explanations-cifar/raw/master/example_output/prebuilt_1_3.png) |
+| resnet44-all.pt | 1.4799 | 14240 | 0.679      | ![Ship](https://github.com/wwoods/adversarial-explanations-cifar/raw/master/example_output/prebuilt_orig_0.png)![ShipExplain](https://github.com/wwoods/adversarial-explanations-cifar/raw/master/example_output/prebuilt_2_0.png) | ![Frog](https://github.com/wwoods/adversarial-explanations-cifar/raw/master/example_output/prebuilt_orig_1.png)![FrogExplain](https://github.com/wwoods/adversarial-explanations-cifar/raw/master/example_output/prebuilt_2_1.png) | ![Cat](https://github.com/wwoods/adversarial-explanations-cifar/raw/master/example_output/prebuilt_orig_2.png)![CatExplain](https://github.com/wwoods/adversarial-explanations-cifar/raw/master/example_output/prebuilt_2_2.png) | ![Automobile](https://github.com/wwoods/adversarial-explanations-cifar/raw/master/example_output/prebuilt_orig_3.png)![AutomobileExplain](https://github.com/wwoods/adversarial-explanations-cifar/raw/master/example_output/prebuilt_2_3.png) |
+| resnet44-robust.pt | 1.4799 | 33778 | 0.6758  | ![Ship](https://github.com/wwoods/adversarial-explanations-cifar/raw/master/example_output/prebuilt_orig_0.png)![ShipExplain](https://github.com/wwoods/adversarial-explanations-cifar/raw/master/example_output/prebuilt_3_0.png) | ![Frog](https://github.com/wwoods/adversarial-explanations-cifar/raw/master/example_output/prebuilt_orig_1.png)![FrogExplain](https://github.com/wwoods/adversarial-explanations-cifar/raw/master/example_output/prebuilt_3_1.png) | ![Cat](https://github.com/wwoods/adversarial-explanations-cifar/raw/master/example_output/prebuilt_orig_2.png)![CatExplain](https://github.com/wwoods/adversarial-explanations-cifar/raw/master/example_output/prebuilt_3_2.png) | ![Automobile](https://github.com/wwoods/adversarial-explanations-cifar/raw/master/example_output/prebuilt_orig_3.png)![AutomobileExplain](https://github.com/wwoods/adversarial-explanations-cifar/raw/master/example_output/prebuilt_3_3.png) |
+
+See the paper or the "github-prebuilt-images" command in `main.py` for additional information on the above table and its images.
 
 ### Explain
 
-To generate explanations on the first 10 CIFAR-10 testing examples, use the `explain` command.  For example, to use a pre-built network with both adversarial training and the robustness additions from the paper:
+To generate explanations on the first 10 CIFAR-10 testing examples with a trained network, use the `explain` command.  For example, to use a pre-built network with both adversarial training and the robustness additions from the paper:
 
 ```bash
 $ python main.py explain prebuilt/resnet44-all.pt [--eps 0.1]
@@ -58,18 +80,7 @@ $ python main.py train path/to/model.pt [--adversarial-training] [--robust-addit
 
 See `python main.py train --help` for additional information on these options.
 
-Training time varies greatly based on available GPU(s).  with both adversarial training and the robustness additions from the paper, training can take up to several days on a single computer.  Turning off adversarial training leads to a significant speedup, and turning off robustness additions produces a smaller speedup.
+Training time varies greatly based on available GPU(s).  With both adversarial training and the robustness additions from the paper, training can take up to several days on a single computer.  Turning off either adversarial training or robustness additions would lead to a significant speedup.
 
 At the top of the `main.py` file are many `CAPITAL_CASE` variables which may be modified to affect the training process.  Their definitions match those in the paper.
-
-### Prebuilt Networks
-
-The repository contains four prebuilt networks:
-
-1. `prebuilt/resnet44-standard.pt`: A standard ResNet-44 with no special training.
-2. `prebuilt/resnet44-adv-train.pt`: A ResNet-44 trained with `--adversarial-training`.
-3. `prebuilt/resnet44-all.pt`: A ResNet-44 trained with `--robust-additions`, `--adversarial-training`, and `--l2-min`.
-4. `prebuilt/resnet44-robust.pt`: A ResNet-44 trained with `--robust-additions`.
-
-These correspond with, but are not the same as, the networks denoted N1, N2, N3, and N4 in the paper.
 
