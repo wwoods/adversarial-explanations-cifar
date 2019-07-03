@@ -11,6 +11,7 @@ import math
 import os
 import shutil
 import torch
+import torch.utils.data.dataset
 import torchvision
 
 ### Configuration settings
@@ -74,6 +75,88 @@ def main():
     # Ensure CIFAR-10 is downloaded
     if not os.path.lexists(cifar10_path):
         torchvision.datasets.CIFAR10(cifar10_path, download=True)
+
+
+@main.command()
+@click.argument('path')
+@click.option('--n-images', default=1000)
+@click.option('--eps', default=20)
+@click.option('--steps', default=450)
+@click.option('--momentum', default=0.9)
+def calculate_ara(path, n_images, eps, steps, momentum):
+    """Calculates the Attack and BTR Accuracy-Robustness Areas (ARAs) for
+    PATH.
+
+    Options:
+
+        --n-images: Number of images to use for the ARA calculation.  Defaults
+                to 1000.
+
+        --eps: Maximum perturbation to apply.  May be greater than 1; per
+                Algorithm 1, many of the steps taken will minimize the
+                perturbation magnitude instead of decreasing confidence in the
+                correct class.  Defaults to 450*.1*.5 = 20, which is about what
+                the paper used.
+
+        --steps: Number of steps to use in determining the lowest-magnitude
+                perturbation which results in a change of either accuracy or
+                BTR, based on the ARA being calculated.  Defaults to 450.
+
+        --momentum: If using fewer than 100 ``steps``, probably best to disable
+                momentum by setting it to zero.  Defaults to 0.9.
+
+    """
+    # Set up model
+    m = _model_load(path)
+
+    device = torch.device('cpu')
+    if torch.cuda.device_count() > 0:
+        device = torch.device('cuda')
+        m = m.to(device)
+        m = torch.nn.DataParallel(m)
+
+    m.eval()
+
+    # Set up dataset based on first --n-images of random test-set permutation
+    ds_train, ds_test = _get_dataset()
+    state = torch.get_rng_state()
+    torch.manual_seed(1776)
+    idx_all = [int(i) for i in torch.randperm(len(ds_test))]
+    torch.set_rng_state(state)
+    ds_test = torch.utils.data.dataset.Subset(ds_test, idx_all[:n_images])
+
+    for ara_name, ara_type in [('Attack', True), ('BTR', 'btr')]:
+        batch_size = TRAIN_BATCHSIZE * max(1, torch.cuda.device_count())
+        test_loader = torch.utils.data.DataLoader(ds_test, batch_size=batch_size,
+                shuffle=False, num_workers=8, drop_last=False)
+
+        n = 0
+        diffs = []
+        for batch in test_loader:
+            images, labels = batch
+            images = images.to(device)
+            labels = labels.to(device)
+            n += images.size(0)
+
+            advs = _adv_images(m, images, labels, AdversarialOptions(
+                    steps=steps, eps=eps, eps_overshoot=1, use_l2min=ara_type,
+                    momentum=momentum))
+            mags = advs.sub_(images).pow_(2).mean((1, 2, 3)).sqrt_()
+            diffs.extend(mags.tolist())
+            print('.', end='', flush=True)
+        print('')
+        assert n == n_images
+        assert n == len(diffs)
+
+        # Convert from perturbations to percentages
+        naive_guess = 1. / m.module.training_options['arch'][-1]
+        diffs = torch.Tensor(diffs)
+        bins = 1000
+        diff_max = diffs.max().item()
+        hist = diffs.histc(bins, min=0, max=diff_max)
+        gap = diff_max / bins
+        ara = gap * (1 - hist.cumsum(0) / n_images).add_(-naive_guess).clamp_(min=0).sum()
+        print(f'{ara_name} ARA: {ara}')
 
 
 @main.command()
@@ -301,6 +384,8 @@ class AdversarialOptions:
     encourage_labels = False  # True for explanations
     eps = 0.1
     eps_overshoot = 1.  # Multiplier for step size; if > 1, uses g_explain
+    momentum = 0  # Momentum for generating the explanations; with a large
+                  # step count, this is useful.  Otherwise not very useful.
     steps = 7
     use_half_and_half = False
     use_l2min = False
@@ -333,6 +418,7 @@ def _adv_images(m, images, labels, opts):
         assert not opts.use_l2min, 'Cannot combine l2_min with encourage_labels'
 
     size = opts.eps * opts.eps_overshoot
+    mom = images.new_zeros(images.size())
     for step in range(opts.steps):
         guesses = m(images + deltas)
         loss = torch.nn.functional.cross_entropy(guesses, target_labels,
@@ -340,7 +426,14 @@ def _adv_images(m, images, labels, opts):
         # detach() not necessary, but just in case it changes...
         image_grads = torch.autograd.grad(loss.sum(), deltas)[0].detach()
 
-        if opts.use_l2min:
+        if isinstance(opts.use_l2min, str):
+            if opts.use_l2min == 'btr':
+                sm = guesses.softmax(1)
+                follow_loss = (sm.gather(1, target_labels.unsqueeze(1))[:, 0]
+                        > 1/sm.size(1)).float()
+            else:
+                raise NotImplementedError(opts.use_l2min)
+        elif opts.use_l2min:
             # l2_min; aim to be correct
             follow_loss = (guesses.argmax(1) == target_labels).float()
         else:
@@ -363,6 +456,11 @@ def _adv_images(m, images, labels, opts):
                 follow_loss * image_grads
                 + (1 - follow_loss) * -deltas.detach())
         sdir /= 1e-8 + sdir.pow(2).mean((1, 2, 3)).sqrt().view(-1, 1, 1, 1)
+        # Momentum helps when steps are high (450), hurts when steps are
+        # low (45).  Difference is not necessarily significant, however.
+        if opts.momentum > 0:
+            mom = mom.mul_(opts.momentum).add_(1 - opts.momentum, sdir)
+            sdir = mom.clone()
         sdir *= affected
         deltas.data.add_(ss, sdir)
     return images + deltas.detach()
