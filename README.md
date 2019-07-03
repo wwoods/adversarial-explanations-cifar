@@ -1,6 +1,6 @@
-# Example Code for "Reliable Classification Explanations via Adversarial Attacks on Robust Networks"
+# Example Code for ["Reliable Classification Explanations via Adversarial Attacks on Robust Networks"](https://arxiv.org/abs/1906.02896)
 
-This code demonstrates the techniques from the above paper, which will be linked at the time it is published.  Note that this was not the exact code used in the research, but is a cleaned-up reproduction of the paper's key insights.
+This code demonstrates the techniques from the above paper, a pre-print of which [is available on ArXiv](https://arxiv.org/abs/1906.02896).  Note that this was not the exact code used in the research, but is a cleaned-up reproduction of the paper's key insights.
 
 ## Installation
 
