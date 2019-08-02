@@ -79,10 +79,10 @@ def main():
 
 @main.command()
 @click.argument('path')
-@click.option('--n-images', default=1000)
-@click.option('--eps', default=20)
-@click.option('--steps', default=450)
-@click.option('--momentum', default=0.9)
+@click.option('--n-images', default=1000, type=int)
+@click.option('--eps', default=20, type=float)
+@click.option('--steps', default=450, type=int)
+@click.option('--momentum', default=0.9, type=float)
 def calculate_ara(path, n_images, eps, steps, momentum):
     """Calculates the Attack and BTR Accuracy-Robustness Areas (ARAs) for
     PATH.
@@ -295,6 +295,7 @@ def train(path, **training_options):
                         use_l2min=training_options['l2_min'],
                         eps=0.1 if training_options['l2_min'] else 0.01,
                         use_half_and_half=training_options['robust_additions'],
+                        ensure_proper_minimization=False,
                 )
                 images = _adv_images(m, images, labels, adv_opts)
 
@@ -389,6 +390,13 @@ class AdversarialOptions:
     steps = 7
     use_half_and_half = False
     use_l2min = False
+    ensure_proper_minimization = True
+    # For explanations and ARA calculations, ensure_proper_minimization serves
+    # as a sanity check.  Basically, it checks that an adversarial example
+    # satisfying the criteria is found prior to half the number of optimization
+    # steps taken, ensuring that some number of the remaining steps are used
+    # for minimizing the perturbation.
+
     def __init__(self, **kw):
         for k, v in kw.items():
             if not hasattr(AdversarialOptions, k):
@@ -419,7 +427,21 @@ def _adv_images(m, images, labels, opts):
 
     size = opts.eps * opts.eps_overshoot
     mom = images.new_zeros(images.size())
-    for step in range(opts.steps):
+
+    track_best = True if opts.use_l2min else False
+    extra_steps = 1 if track_best else 0
+
+    if opts.ensure_proper_minimization:
+        first_ok_steps = images.new_zeros(images.size(0),
+                dtype=torch.int).fill_(999 + opts.steps)
+
+    if track_best:
+        # Also track the first step at which results were OK, and the
+        # lowest-perturbation delta.
+        best_ok_deltas = torch.zeros_like(images)
+        best_ok_deltas_sqr = images.new_zeros(images.size(0)).fill_(1e30)
+
+    for step in range(opts.steps + extra_steps):
         guesses = m(images + deltas)
         loss = torch.nn.functional.cross_entropy(guesses, target_labels,
                 reduction='none')
@@ -440,6 +462,25 @@ def _adv_images(m, images, labels, opts):
             # Standard l2; aim to be within eps.
             follow_loss = (deltas.detach().pow(2).mean((1, 2, 3))
                     < opts.eps ** 2).float()
+
+        if opts.ensure_proper_minimization:
+            # Note that follow_loss == 0 checks for the boundary condition
+            # being satisfied.
+            is_ok = (follow_loss == 0)
+            set_step = is_ok * (first_ok_steps > step)
+            first_ok_steps[set_step] = step
+
+        if track_best:
+            # Track the best perturbation which satisfies the criteria.
+            ddist = deltas.detach().pow(2).mean((1, 2, 3))
+            set_best = (follow_loss == 0) * (ddist < best_ok_deltas_sqr)
+            best_ok_deltas[set_best] = deltas.detach()[set_best]
+            best_ok_deltas_sqr[set_best] = ddist[set_best]
+
+            # All done; are we in extra step?  If so, don't do another step
+            if step == opts.steps:
+                deltas = best_ok_deltas
+                break
 
         if target_encourage:
             image_grads *= -1
@@ -463,6 +504,17 @@ def _adv_images(m, images, labels, opts):
             sdir = mom.clone()
         sdir *= affected
         deltas.data.add_(ss, sdir)
+
+    if opts.ensure_proper_minimization:
+        if (first_ok_steps > opts.steps // 2).sum().item() != 0:
+            raise ValueError("In order to ensure that a good bound is "
+                    "located, calculating ARA or generating an explanation "
+                    "checks that a suitable adversarial example is found "
+                    "within half the specified number of optimization steps.  "
+                    "This ensures that the reported minimal attack or "
+                    "explanation is sufficiently representative.  "
+                    "However, this was not the case.  Increase eps or steps.")
+
     return images + deltas.detach()
 
 
