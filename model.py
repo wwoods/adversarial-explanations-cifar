@@ -128,7 +128,7 @@ class HHReLU(nn.Module):
             q = (x.detach() > d).float()
 
             # Cover linear region
-            x.add_(-0.5 * d, q)
+            x.add_(q, alpha=-0.5 * d)
 
             # Hmm... another temporary for multiplying x to get bowl region
             nq = q.neg().add_(1. / (2 * d))

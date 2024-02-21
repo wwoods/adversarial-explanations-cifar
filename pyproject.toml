@@ -1,0 +1,23 @@
+[project]
+name = "adversarial-explanations-cifar"
+version = "1.0.0"
+authors = [
+    { name = "Walt Woods", email = "woodswalben@gmail.com" }
+]
+dependencies = [
+    "torch>=2.2.0",
+    "torchvision>=0.17.0",
+    "click>=8.1.7",
+]
+readme = "README.md"
+requires-python = ">= 3.12"
+
+[tool.rye]
+managed = true
+virtual = true
+dev-dependencies = []
+
+[[tool.rye.sources]]
+name = "pytorch"
+url = "https://download.pytorch.org/whl/cu121"
+

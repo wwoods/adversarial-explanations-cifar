@@ -225,7 +225,7 @@ def explain(path, eps):
 @click.option('--l2-min/--no-l2-min', default=False)
 @click.option('--robust-additions/--no-robust-additions', default=False)
 def train(path, **training_options):
-    """Trains a network and saves the result at PATH.
+    r"""Trains a network and saves the result at PATH.
 
     Options:
 
@@ -587,8 +587,9 @@ def _model_robust_get_grads(guesses, images, labels, train):
         # Select unfairly smoothed
         unfair_real = guesses.gather(1, labels.unsqueeze(1))[:, 0]
         unfair_max = guesses.clone()
-        unfair_max.scatter_(1, labels.unsqueeze(1),
+        unfair_max_min = torch.empty_like(unfair_max).fill_(
                 unfair_max.detach().min() - 1)
+        unfair_max.scatter_(1, labels.unsqueeze(1), unfair_max_min)
         sunfair = (unfair_real - unfair_max.max(1)[0])
 
         to_smooth = unfair * sunfair + (1 - unfair) * sfair
