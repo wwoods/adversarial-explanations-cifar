@@ -500,10 +500,10 @@ def _adv_images(m, images, labels, opts):
         # Momentum helps when steps are high (450), hurts when steps are
         # low (45).  Difference is not necessarily significant, however.
         if opts.momentum > 0:
-            mom = mom.mul_(opts.momentum).add_(1 - opts.momentum, sdir)
+            mom = mom.mul_(opts.momentum).add_(sdir, alpha=1 - opts.momentum)
             sdir = mom.clone()
         sdir *= affected
-        deltas.data.add_(ss, sdir)
+        deltas.data.add_(sdir, alpha=ss)
 
     if opts.ensure_proper_minimization:
         if (first_ok_steps > opts.steps // 2).sum().item() != 0:
